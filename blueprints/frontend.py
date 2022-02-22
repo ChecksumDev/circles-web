@@ -151,7 +151,7 @@ async def settings_avatar_post():
     filename, file_extension = os.path.splitext(avatar.filename.lower())
 
     # bad file extension; deny post
-    if not file_extension in ALLOWED_EXTENSIONS:
+    if file_extension not in ALLOWED_EXTENSIONS:
         return await flash('error', 'The image you select must be either a .JPG, .JPEG, or .PNG file!',
                            'settings/avatar')
 
@@ -217,17 +217,15 @@ async def settings_password_post():
 
     # check old password against db
     # intentionally slow, will cache to speed up
-    if pw_bcrypt in bcrypt_cache:
-        if pw_md5 != bcrypt_cache[pw_bcrypt]:  # ~0.1ms
-            if glob.config.debug:
-                log(f"{session['user_data']['name']}'s change pw failed - pw incorrect.", Ansi.LYELLOW)
-            return await flash('error', 'Your old password is incorrect.', 'settings/password')
-    else:  # ~200ms
-        if not bcrypt.checkpw(pw_md5, pw_bcrypt):
-            if glob.config.debug:
-                log(f"{session['user_data']['name']}'s change pw failed - pw incorrect.", Ansi.LYELLOW)
-            return await flash('error', 'Your old password is incorrect.', 'settings/password')
-
+    if (
+        pw_bcrypt in bcrypt_cache
+        and pw_md5 != bcrypt_cache[pw_bcrypt]
+        or pw_bcrypt not in bcrypt_cache
+        and not bcrypt.checkpw(pw_md5, pw_bcrypt)
+    ):  # ~0.1ms
+        if glob.config.debug:
+            log(f"{session['user_data']['name']}'s change pw failed - pw incorrect.", Ansi.LYELLOW)
+        return await flash('error', 'Your old password is incorrect.', 'settings/password')
     # remove old password from cache
     if pw_bcrypt in bcrypt_cache:
         del bcrypt_cache[pw_bcrypt]
@@ -257,18 +255,16 @@ async def profile(id):
     mods = request.args.get('mods', type=str)
 
     # make sure mode & mods are valid args
-    if mode is not None:
-        if mode not in VALID_MODES:
-            return await render_template('404.html'), 404
-    else:
+    if mode is None:
         mode = 'std'
 
-    if mods is not None:
-        if mods not in VALID_MODS:
-            return await render_template('404.html'), 404
-    else:
+    elif mode not in VALID_MODES:
+        return await render_template('404.html'), 404
+    if mods is None:
         mods = 'vn'
 
+    elif mods not in VALID_MODS:
+        return await render_template('404.html'), 404
     user_data = await glob.db.fetch(
         'SELECT name, id, priv, country '
         'FROM users '
