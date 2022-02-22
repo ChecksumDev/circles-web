@@ -143,7 +143,7 @@ async def get_user_info():
         q.append('WHERE u.id = %s')
         q2.append('WHERE u.id = %s')
         args.append(id)
-    elif name:
+    else:
         q.append('WHERE u.safe_name = %s')
         q2.append('WHERE u.safe_name = %s')
         args.append(utils.get_safe_name(name))
@@ -189,15 +189,10 @@ async def get_player_scores():
     if not limit:
         limit = 50
 
-    # fetch scores
     q = [f'SELECT scores_{mods}.*, maps.* '
          f'FROM scores_{mods} JOIN maps ON scores_{mods}.map_md5 = maps.md5']
     q2 = [f'SELECT COUNT(scores_{mods}.id) AS result '
           f'FROM scores_{mods} JOIN maps ON scores_{mods}.map_md5 = maps.md5']
-
-    # argumnts
-    args = []
-
     q.append(f'WHERE scores_{mods}.userid = %s '
              f'AND scores_{mods}.mode = {mode} '
              f'AND maps.status = 2')
@@ -208,8 +203,7 @@ async def get_player_scores():
         q2.append(f'AND scores_{mods}.status = 2')
     q.append(f'ORDER BY scores_{mods}.{sort} DESC '
              f'LIMIT {limit}')
-    args.append(id)
-
+    args = [id]
     if glob.config.debug:
         log(' '.join(q), Ansi.LGREEN)
         log(' '.join(q2), Ansi.LGREEN)
@@ -242,19 +236,14 @@ async def get_player_most():
     if not limit:
         limit = 50
 
-    # fetch scores
     q = [
         f'SELECT scores_{mods}.mode, scores_{mods}.map_md5, maps.artist, maps.title, maps.set_id, maps.creator, COUNT(*) AS `count` '
-        f'FROM scores_{mods} JOIN maps ON scores_{mods}.map_md5 = maps.md5']
+        f'FROM scores_{mods} JOIN maps ON scores_{mods}.map_md5 = maps.md5',
+        f'WHERE userid = %s AND scores_{mods}.mode = {mode} GROUP BY map_md5',
+        f'ORDER BY COUNT DESC ' f'LIMIT {limit}',
+    ]
 
-    # argumnts
-    args = []
-
-    q.append(f'WHERE userid = %s AND scores_{mods}.mode = {mode} GROUP BY map_md5')
-    q.append(f'ORDER BY COUNT DESC '
-             f'LIMIT {limit}')
-    args.append(id)
-
+    args = [id]
     if glob.config.debug:
         log(' '.join(q), Ansi.LGREEN)
     res = await glob.db.fetchall(' '.join(q), args)
